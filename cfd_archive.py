@@ -41,6 +41,19 @@ def normalize_title(value: str) -> str:
     return re.sub(r"[\s_]+", "_", value.strip())
 
 
+def unique_names(names: list[str]) -> list[str]:
+    """Collapse space/underscore variants to one canonical name each."""
+    seen: set[str] = set()
+    unique: list[str] = []
+    for name in names:
+        key = normalize_title(name)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(key)
+    return unique
+
+
 def template_key(name: object) -> str:
     key = re.sub(r"[\s_]+", " ", str(name).strip()).lower()
     if key.startswith("template:"):
@@ -85,13 +98,11 @@ def cfd_subpage_name(template_name: str, ym: str) -> str | None:
 
 def listed_names(text: str, ym: str) -> list[str]:
     names: list[str] = []
-    seen: set[str] = set()
     for template in mwparserfromhell.parse(text).filter_templates():
         name = cfd_subpage_name(str(template.name), ym)
-        if name is not None and name not in seen:
-            seen.add(name)
+        if name is not None:
             names.append(name)
-    return names
+    return unique_names(names)
 
 
 def is_closed(text: str) -> bool:
@@ -149,7 +160,9 @@ def strip_transclusions(text: str, ym: str, names: list[str]) -> tuple[str, set[
 def append_transclusions(text: str, ym: str, names: list[str]) -> tuple[str, list[str]]:
     """Append missing transclusions for *names*, returning the new text."""
     present = {normalize_title(name) for name in listed_names(text, ym)}
-    added = [name for name in names if normalize_title(name) not in present]
+    added = unique_names(
+        [name for name in names if normalize_title(name) not in present]
+    )
     if not added:
         return text, []
 
@@ -172,7 +185,11 @@ def load_state(path: Path) -> tuple[dict[str, list[str]], int | None]:
 
     # utf-8-sig so a hand-edited file with a BOM still loads.
     data = json.loads(path.read_text(encoding="utf-8-sig"))
-    cfds = {key: list(value) for key, value in data.items() if MONTH_KEY_RE.match(key)}
+    cfds = {
+        key: unique_names(value)
+        for key, value in data.items()
+        if MONTH_KEY_RE.match(key)
+    }
 
     last_touched = data.get(LAST_TOUCHED)
     if last_touched is not None:
@@ -390,7 +407,7 @@ def scan_month_pages(site, cfds: dict[str, list[str]], keys: list[str]) -> int:
             if normalize_title(name) not in known
         ]
         if new:
-            cfds[key].extend(new)
+            cfds[key] = unique_names(cfds[key] + new)
             total_new += len(new)
         logger.info("%s: %d listed, %d new", key, len(cfds[key]), len(new))
 
@@ -404,7 +421,10 @@ def find_closed(site, cfds: dict[str, list[str]]) -> dict[str, list[str]]:
     for ym in sorted(cfds):
         for name in cfds[ym]:
             title = subpage_title(ym, name)
-            index[normalize_title(title)] = (ym, name)
+            key = normalize_title(title)
+            if key in index:
+                continue
+            index[key] = (ym, name)
             pages.append(pywikibot.Page(site, title))
 
     if not pages:
@@ -424,8 +444,8 @@ def find_closed(site, cfds: dict[str, list[str]]) -> dict[str, list[str]]:
             logger.debug("closed: %s", subpage_title(ym, name))
 
     for ym, names in cfds_todo.items():
-        closed = set(names)
-        cfds[ym] = [name for name in cfds[ym] if name not in closed]
+        closed = {normalize_title(name) for name in names}
+        cfds[ym] = [name for name in cfds[ym] if normalize_title(name) not in closed]
 
     if missing:
         logger.info(
@@ -471,7 +491,7 @@ def run(args: argparse.Namespace) -> int:
             failed += 1
             logger.error("Failed to archive %s (%s); will retry next run", ym, error)
             # Put the entries back so the next run picks them up again.
-            cfds[ym] = names + cfds.get(ym, [])
+            cfds[ym] = unique_names(names + cfds.get(ym, []))
 
     if args.live:
         write_state(args.data, cfds, started)
