@@ -1,0 +1,8 @@
+- name: cfd-archive
+  command: $HOME/pwbvenv/bin/python3 -u $HOME/com-cfd/cfd_archive.py --live
+  image: python3.13
+  schedule: @daily
+  timeout: 7200
+  mem: 512Mi
+  retry: 1
+  emails: onfailure
