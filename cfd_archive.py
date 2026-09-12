@@ -340,7 +340,7 @@ def archive_month(site, ym: str, names: list[str], *, live: bool) -> None:
         archive_page.text = new_archive_text
         save(
             archive_page,
-            f"[[Commons:Bots/Requests/MSKbot|[BOT]]] archiving {len(added)} closed [[COM:CFD|CfD]] discussion{'s' if len(added) > 1 else ''} "
+            f"[[Commons:Bots/Requests/MSKbot|BOT:]] archiving {len(added)} closed [[COM:CFD|CfD]] discussion{'s' if len(added) > 1 else ''} "
             f"from [[{BASE}/{ym}|{ym}]]",
             live=live,
         )
@@ -367,7 +367,7 @@ def archive_month(site, ym: str, names: list[str], *, live: bool) -> None:
         month_page.text = new_month_text
         save(
             month_page,
-            f"[[Commons:Bots/Requests/MSKbot|[BOT]]] archiving {len(removed)} closed [[COM:CFD|CfD]] discussion{'s' if len(removed) > 1 else ''} "
+            f"[[Commons:Bots/Requests/MSKbot|BOT:]] archiving {len(removed)} closed [[COM:CFD|CfD]] discussion{'s' if len(removed) > 1 else ''} "
             f" to [[{ARCHIVE_BASE}/{ym}|Archive/{ym}]]",
             live=live,
         )
